@@ -1,137 +1,130 @@
 # Game "Full Speed" by Kuba & Stepan
-# Source code from https://github.com/Hellmole/Raspberry-pi-pico-games.git
 
-from machine import Pin, I2C, PWM
-from ssd1306 import SSD1306_I2C
+from PicoGame import PicoGame
 import time
 import random
 
+
 def pico_full_speed_main():
-    
-    # OLED Screen connected to GP14 (SDA) and GP15 (SCL)
-    i2c = I2C(1, sda = Pin(14), scl = Pin(15), freq = 400000)
-    oled = SSD1306_I2C(128, 64, i2c)
+    game = PicoGame()
 
-    oled.fill(0)  
-    oled.text("Full Speed", 5, 6)
-    oled.text("By Kuba", 30, 23)
-    oled.text("&", 55, 35)
-    oled.text("Stepan", 35, 47)
-    oled.rect(0, 0, 128, 20 , 1)
-    oled.show()
-    time.sleep(2)
+    if not start_screen(game):
+        return
 
-    x = 1
-    y = 1
-    prekazka = 1
-    ran = 0
-    direction3 = 1
-    x_pos = 2
-    tilt = 0
-    score = 1
-    speed= 1
-    acceleration = 1
-    level = 1
-    y_rival = 0
-    crasch = 0
-
-    right = Pin(4, Pin.IN, Pin.PULL_UP) # right
-    left = Pin(5, Pin.IN, Pin.PULL_UP)  # left
+    player_x = 0
+    road_shift = 0
+    road_dir = 1
+    obstacle_y = -20
+    obstacle_x = 0
+    speed = 1
+    score = 0
 
     while True:
-    
-        oled.fill(0) 
-        tilt = 0
-
-        if not left.value():
-            # button left pressed
-            x_pos = x_pos + 2
-            tilt = 4 
-  
-        if not right.value():
-            # button right pressed
-            x_pos = x_pos - 2
-            tilt = -4
-    
-        y_rival = ran + y
-        oled.text("Score:" + str(score), 0, 0)
-        oled.text(str(score * 5) + " km/h", 70, 0)
-    
-        x = x + 1
-        y = y + direction3
-        prekazka = prekazka + speed
-
-    
-        # horizon
-        oled.line(20 + y // 5, 35 + y // 10 , 9 + y // 4 , 39 + y // 10, 1)
-        oled.line(20 + y // 5, 35 + y // 10, 29 + y // 4, 39 + y // 10, 1)
-        
-        # road
-        oled.rect(0, 40 + y //10, 128, 2, 1)
-
-        oled.line(50 + y, 40 + y // 10, 30 , 50, 1)
-        oled.line(70 + y , 40 + y // 10, 90, 50, 1)
-    
-        oled.line(30, 50, 10, 63, 1)
-        oled.line(90, 50, 118, 63, 1)
-    
-        oled.rect(0, 42 + x//2, 128, 4, 0)
-    
-        oled.rect(0, 52 + x, 128, 8, 0)
-    
-        # your moto
-        oled.rect(60 + x_pos, 58, 2, 4, 1)
-        oled.rect(59  + x_pos + tilt // 2, 55, 5, 4, 1)
-
-        oled.rect(60 + x_pos + tilt, 52, 2, 2, 1)
-
-        # rival
-        if prekazka > 10: 
-            oled.rect(60 + ran + y, 38 + prekazka , 2, 4, 1)
-            oled.rect(59 + y // 20  + ran + y, 35 + prekazka, 5, 4, 1)
-
-            oled.rect(60 + y // 10  + ran + y, 32 + prekazka, 2, 2, 1)
-        
-        if prekazka <= 10: 
-            oled.rect(60 + ran + y, 38 + prekazka , 2, 4, 1)
-    
-        oled.show()
-    
-        if x== 4:  
-            x = 0
-
-        if prekazka >= 30:  
-            ran = random.randint(-5, 5)
-            ran = ran * 2
-            prekazka = 0
-            score = score + 1
-            acceleration = acceleration + 0.05
-            speed = round(acceleration)
-    
-
-        if y <= -35  or y >= 25:  
-            direction3 = -direction3
-
-        if y <= -15:  
-            x_pos = x_pos + 2
-        
-        if y > 15 :  
-            x_pos = x_pos - 2
-            
-        if x_pos >=  46 or x_pos < -46:       
-            crasch = 1
-
-        if x_pos <= y_rival + 4  and x_pos >= y_rival - 4 and prekazka >= 15:       
-            crasch = 1
-
-
-        if  crasch ==  1:  
-            oled.text("GAME OVER", 25, 26)
-            oled.show()
-            time.sleep(2)
+        if game.button_B():
+            game.sound(0)
+            game.wait_release()
             return
-        
-        time.sleep(0.1)
-        
+        if game.button_left():
+            player_x -= 3
+        if game.button_right():
+            player_x += 3
+
+        road_shift += road_dir
+        if road_shift <= -28 or road_shift >= 24:
+            road_dir = -road_dir
+
+        obstacle_y += speed + 1
+        if obstacle_y > 64:
+            obstacle_y = -10
+            obstacle_x = random.randint(-34, 34)
+            score += 1
+            if score % 8 == 0 and speed < 5:
+                speed += 1
+
+        road_center = road_shift
+        if road_shift < -12:
+            player_x += 1
+        elif road_shift > 12:
+            player_x -= 1
+
+        crash = player_x < -46 or player_x > 46
+        if obstacle_y > 42 and obstacle_y < 62:
+            if abs(player_x - obstacle_x - road_center // 2) < 7:
+                crash = True
+
+        game.fill(0)
+        game.text("S:" + str(score), 0, 0, 1)
+        game.top_right_corner_text(str((score + 1) * 5) + "k")
+        draw_road(game, road_shift)
+        draw_bike(game, 64 + player_x, 56, 0)
+        if obstacle_y > -8:
+            draw_bike(game, 64 + obstacle_x + road_center // 2, obstacle_y, 0)
+        game.show()
+
+        if crash:
+            game.sound(180)
+            time.sleep_ms(350)
+            game.sound(0)
+            if not end_screen(game, score):
+                return
+            player_x = 0
+            road_shift = 0
+            road_dir = 1
+            obstacle_y = -20
+            obstacle_x = 0
+            speed = 1
+            score = 0
+
+        time.sleep_ms(70)
+
+
+def draw_road(game, shift):
+    game.line(18 + shift // 4, 34, 110 + shift // 4, 34, 1)
+    game.line(46 + shift, 34, 16, 63, 1)
+    game.line(82 + shift, 34, 112, 63, 1)
+    game.line(62 + shift // 2, 38, 60, 63, 1)
+    game.line(66 + shift // 2, 38, 68, 63, 1)
+
+
+def draw_bike(game, x, y, tilt):
+    game.rect(int(x) - 2 + tilt, int(y) - 6, 4, 3, 1)
+    game.rect(int(x) - 1, int(y) - 2, 2, 4, 1)
+    game.pixel(int(x), int(y) - 8, 1)
+
+
+def start_screen(game):
+    game.fill(0)
+    game.center_text("FULL SPEED", 14)
+    game.text("Left/right steer", 0, 36, 1)
+    game.text("A start B menu", 8, 52, 1)
+    game.show()
+    game.wait_release()
+    while True:
+        if game.button_A():
+            game.wait_release()
+            return True
+        if game.button_B():
+            game.wait_release()
+            return False
+        time.sleep_ms(20)
+
+
+def end_screen(game, score):
+    game.fill(0)
+    game.center_text("CRASH")
+    game.text("Score " + str(score), 32, 36, 1)
+    game.text("A again B menu", 8, 52, 1)
+    game.show()
+    game.wait_release()
+    while True:
+        if game.button_A():
+            game.wait_release()
+            return True
+        if game.button_B():
+            game.wait_release()
+            return False
+        time.sleep_ms(20)
+
+
 if __name__ == "__main__":
     pico_full_speed_main()

@@ -1,100 +1,137 @@
 # Game "Lunar Module" by Kuba & Stepan
-# Source code from https://github.com/Hellmole/Raspberry-pi-pico-games.git
 
-from machine import Pin, I2C, PWM
-from ssd1306 import SSD1306_I2C
+from PicoGame import PicoGame
 import time
-import random
+
 
 def pico_lunar_module_main():
-    # OLED Screen connected to GP14 (SDA) and GP15 (SCL)
-    i2c = I2C(1, sda = Pin(14), scl = Pin(15), freq = 400000)
-    oled = SSD1306_I2C(128, 64, i2c)
+    game = PicoGame()
+    if not start_screen(game):
+        return
 
-    oled.fill(0)  
-    oled.text("Lunar Module", 5, 6)
-    oled.text("By Kuba", 30, 23)
-    oled.text("&", 55, 35)
-    oled.text("Stepan", 35, 47)
-    oled.rect(0, 0, 128, 20 , 1)
-    oled.show()
-    time.sleep(2)
-    
     level = 1
-    x_pos = 2
-    direction = 0
-    ran = 1
-    direction2 = 1
-    direction3 = 1
-    x_pos2 = 2
-    y_pos2 = 2
-    gravity= 1
-    fuel = 25
-    fire = 0
-    
-    button1 = Pin(6, Pin.IN, Pin.PULL_UP)
-    button2 = Pin(7, Pin.IN, Pin.PULL_UP)
-    
-    shift = 0
+    x = 8
+    y = 2
+    vx = 1
+    vy = 0
+    fuel = 30
 
     while True:
-    
-        if not button1.value() or not button2:
-            # button 1 or 2 pressed => fire thruster
-            fire = 1
-            gravity = gravity - 5
-            fuel = fuel - 1 
-  
-        oled.fill(0)  
-        oled.text("Fuel " + str(fuel), 0, 55)
-        oled.text("m/s " + str(gravity), 80, 1)
-    
-   
-        # Lunar modul
-        
-        oled.rect(6 + x_pos2, 3 + y_pos2, 5, 5, 1)
-        oled.vline(5 + x_pos2, 5 + y_pos2, 5, 1)
-        oled.vline(11 + x_pos2, 5 + y_pos2, 5, 1)
-        oled.rect(7 + x_pos2, 1 + y_pos2, 3, 4 , 1)
-
-        # landing area
-        oled.rect(100, 62, 14, 2, 1)
-        
-        if fire == 1:
-            oled.vline(8 + x_pos2, 11 + y_pos2, 8, 1)
-            fire = 0
-
-        x_pos2 = x_pos2 + ran 
-        y_pos2 = y_pos2 + direction3
-        y_pos2 = y_pos2 +  1 + gravity // 10
-        gravity = gravity + 1
-       
-        if x_pos2 > 90 and x_pos2 < 110 and y_pos2 >=  56 and gravity < 4:
-            oled.text("Landing OK!", 25, 20)
-            level = level + 1
-            oled.text("Level " + str(level), 25, 30)
-            oled.show()
-            time.sleep(2) 
-            x_pos = 2
-            direction = 0
-            gravity = 1
-            ran = ran + 1
-            direction2 = 1
-            direction3 = 1
-            x_pos2 = 2
-            y_pos2 = 2
-            fuel = 25
-
-        elif y_pos2 >=  56 or fuel < 1:       
-            oled.text("GAME OVER", 25, 26)
-            oled.show()
-            time.sleep(2) 
+        if game.button_B():
+            game.sound(0)
+            game.wait_release()
             return
-   
 
-        oled.show()
+        thrust = False
+        if (game.button_A() or game.button_up()) and fuel > 0:
+            thrust = True
+            vy -= 2
+            fuel -= 1
+            game.sound(900)
+        else:
+            game.sound(0)
 
-        time.sleep(0.1)
-        
+        if game.button_left() and fuel > 0:
+            vx -= 1
+            fuel = max(0, fuel - 1)
+        if game.button_right() and fuel > 0:
+            vx += 1
+            fuel = max(0, fuel - 1)
+
+        vy += 1
+        x += vx
+        y += int(vy / 2)
+
+        if x < 0:
+            x = 0
+            vx = 1
+        if x > 120:
+            x = 120
+            vx = -1
+
+        game.fill(0)
+        game.text("F:" + str(fuel), 0, 0, 1)
+        game.top_right_corner_text("V:" + str(vy))
+        game.rect(94, 62, 22, 2, 1)
+        draw_lander(game, x, y, thrust)
+        game.show()
+
+        if y >= 52:
+            landed = x >= 92 and x <= 112 and abs(vx) <= 3 and vy <= 6 and fuel >= 0
+            game.sound(0)
+            if landed:
+                game.fill(0)
+                game.center_text("LANDING OK", 18)
+                game.center_text("LEVEL " + str(level + 1), 36)
+                game.show()
+                time.sleep_ms(1200)
+                level += 1
+                x = 8
+                y = 2
+                vx = level
+                vy = 0
+                fuel = max(18, 32 - level)
+            else:
+                game.sound(160)
+                time.sleep_ms(300)
+                game.sound(0)
+                if not end_screen(game, level):
+                    return
+                level = 1
+                x = 8
+                y = 2
+                vx = 1
+                vy = 0
+                fuel = 30
+
+        if fuel <= 0 and y < 52:
+            fuel = 0
+
+        time.sleep_ms(90)
+
+
+def draw_lander(game, x, y, thrust):
+    game.rect(int(x) + 2, int(y) + 2, 6, 5, 1)
+    game.rect(int(x) + 3, int(y), 4, 3, 1)
+    game.vline(int(x) + 1, int(y) + 5, 5, 1)
+    game.vline(int(x) + 8, int(y) + 5, 5, 1)
+    if thrust:
+        game.vline(int(x) + 5, int(y) + 8, 7, 1)
+
+
+def start_screen(game):
+    game.fill(0)
+    game.center_text("LUNAR MODULE", 14)
+    game.text("A/up thrust", 20, 36, 1)
+    game.text("A start B menu", 8, 52, 1)
+    game.show()
+    game.wait_release()
+    while True:
+        if game.button_A():
+            game.wait_release()
+            return True
+        if game.button_B():
+            game.wait_release()
+            return False
+        time.sleep_ms(20)
+
+
+def end_screen(game, level):
+    game.fill(0)
+    game.center_text("CRASH")
+    game.text("Level " + str(level), 36, 36, 1)
+    game.text("A again B menu", 8, 52, 1)
+    game.show()
+    game.wait_release()
+    while True:
+        if game.button_A():
+            game.wait_release()
+            return True
+        if game.button_B():
+            game.wait_release()
+            return False
+        time.sleep_ms(20)
+
+
 if __name__ == "__main__":
     pico_lunar_module_main()

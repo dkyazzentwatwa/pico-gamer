@@ -1,25 +1,31 @@
 # PicoGame.py by YouMakeTech
 # A class to easily write games for the Raspberry Pi Pico RetroGaming System
-from machine import Pin, PWM, I2C, Timer
+from machine import Pin, PWM, I2C
 from ssd1306 import SSD1306_I2C
 from framebuf import FrameBuffer, MONO_HLSB
 import time
-import random
+
+import config
 
 class PicoGame(SSD1306_I2C):
     def __init__(self):
-        self.SCREEN_WIDTH = 128
-        self.SCREEN_HEIGHT = 64
-        self.__up = Pin(2, Pin.IN, Pin.PULL_UP)
-        self.__down = Pin(3, Pin.IN, Pin.PULL_UP)
-        self.__left = Pin(4, Pin.IN, Pin.PULL_UP)
-        self.__right = Pin(5, Pin.IN, Pin.PULL_UP)
-        self.__button_A = Pin(6, Pin.IN, Pin.PULL_UP)
-        self.__button_B = Pin(7, Pin.IN, Pin.PULL_UP)
-        self.__buzzer = PWM(Pin(18))
+        self.SCREEN_WIDTH = config.SCREEN_WIDTH
+        self.SCREEN_HEIGHT = config.SCREEN_HEIGHT
+        self.__up = Pin(config.BUTTON_PINS["up"], Pin.IN, Pin.PULL_UP)
+        self.__down = Pin(config.BUTTON_PINS["down"], Pin.IN, Pin.PULL_UP)
+        self.__left = Pin(config.BUTTON_PINS["left"], Pin.IN, Pin.PULL_UP)
+        self.__right = Pin(config.BUTTON_PINS["right"], Pin.IN, Pin.PULL_UP)
+        self.__button_A = Pin(config.BUTTON_PINS["a"], Pin.IN, Pin.PULL_UP)
+        self.__button_B = Pin(config.BUTTON_PINS["b"], Pin.IN, Pin.PULL_UP)
+        self.__buzzer = PWM(Pin(config.BUZZER_PIN))
         
-        self.__i2c = I2C(1, sda=Pin(14), scl=Pin(15), freq=400000)
-        super().__init__(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.__i2c)
+        self.__i2c = I2C(
+            config.I2C_ID,
+            sda=Pin(config.I2C_SDA_PIN),
+            scl=Pin(config.I2C_SCL_PIN),
+            freq=config.I2C_FREQ,
+        )
+        super().__init__(self.SCREEN_WIDTH, self.SCREEN_HEIGHT, self.__i2c, addr=config.I2C_ADDR)
         
         self.__fb=[] # Array of FrameBuffer objects for sprites
         self.__w=[]
@@ -27,13 +33,21 @@ class PicoGame(SSD1306_I2C):
         
         self.__mute = False
     
-    def center_text(self, s, color = 1):
+    def center_text(self, s, color = 1, y = None):
+        if color not in (0, 1) and y is None:
+            y = color
+            color = 1
         x = int(self.width/2)- int(len(s)/2 * 8)
-        y = int(self.height/2) - 8
+        if x < 0:
+            x = 0
+        if y is None:
+            y = int(self.height/2) - 8
         self.text(s, x, y, color)
         
     def top_right_corner_text(self, s, color = 1):
         x = self.width - int(len(s) * 8)
+        if x < 0:
+            x = 0
         y = 0
         self.text(s, x, y, color)
         
@@ -113,13 +127,31 @@ class PicoGame(SSD1306_I2C):
         if self.button_B():
             button_pressed = True
         return button_pressed
+
+    def wait_release(self):
+        while self.any_button():
+            time.sleep_ms(20)
+
+    def wait_press(self):
+        while not self.any_button():
+            time.sleep_ms(20)
+
+    def toggle_mute(self):
+        self.__mute = not self.__mute
+        self.sound(0)
+        return self.__mute
+
+    def is_muted(self):
+        return self.__mute
+
+    def should_exit(self):
+        return self.button_B()
     
     def sound(self, freq, duty_u16 = 2000):
-        if not self.__mute:
-            # Make a sound at the selected frequency in Hz
-            if freq>0:
-                self.__buzzer.freq(freq)
-                self.__buzzer.duty_u16(duty_u16)
-            else:
-                self.__buzzer.duty_u16(0)
+        if self.__mute or freq <= 0:
+            self.__buzzer.duty_u16(0)
+            return
+        # Make a sound at the selected frequency in Hz
+        self.__buzzer.freq(freq)
+        self.__buzzer.duty_u16(duty_u16)
        

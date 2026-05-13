@@ -40,7 +40,7 @@ def render():
     game.text(score, board_width + Resources.BLOCK_0_W, 0, 1)
     game.text(level, board_width + Resources.BLOCK_0_W, Resources.BLOCK_0_H * 2, 1)
     game.text(next_block, board_width + Resources.BLOCK_0_W, Resources.BLOCK_0_H * 4, 1)
-    if game.__mute:
+    if game.is_muted():
         game.text("Mute (B)", board_width + Resources.BLOCK_0_W, board_height - 5 * Resources.BLOCK_0_H, 1)
     for j in range(len(l.SHAPES[l.next_shape][0])):
         for i in range(len(l.SHAPES[l.next_shape][0][0])):
@@ -49,15 +49,9 @@ def render():
                 
     for j in range(len(l.board)):
         for i in range(len(l.board[j])):
-            if key_down == True:
-                print(l.board[j][i], end=" ")
             if l.board[j][i] > 0:
             #   game.pixel(board_width + i, we might was to get some,  M0, 1)
                 game.rect(top_left + i * game.sprite_width(l.board[j][i]), board_height -1 - (j + 4) * game.sprite_height(l.board[j][i]), 3, 3, 1)
-        if key_down == True:
-            print()
-    if key_down == True:
-        print(l.shape_x, l.shape_y, l.shape, l.shape_frame)
     if l.game_over:
         game.fill_rect(0, int(Resources.SCREEN_HEIGHT / 2) - Resources.BLOCK_0_W * 3, Resources.SCREEN_WIDTH, Resources.BLOCK_0_W * 4, 1)
         game.center_text("GAME OVER", 0)
@@ -86,8 +80,7 @@ def handle_keys():
         l.shape_frame += 1
         key_down = True
     elif game.button_B():
-        game.sound(0)
-        game.__mute = not game.__mute
+        game.toggle_mute()
         key_down = True
     return
 

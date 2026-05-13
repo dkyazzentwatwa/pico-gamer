@@ -3,6 +3,12 @@
 import random
 import time
 
+
+def ticks_ms():
+    if hasattr(time, "ticks_ms"):
+        return time.ticks_ms()
+    return int(time.time() * 1000)
+
 class Logic:
 
     # constants
@@ -183,7 +189,6 @@ class Logic:
         self.set_level(self.level)
         self.game_over = False
         for i in range(self.BOARD_WIDTH - 1):
-            print(self.board[16])
             if self.board[16][i] != 0:
                 self.game_over = True
         return
@@ -205,16 +210,15 @@ class Logic:
             if line_score == 0:
                 self.shape_changed = False
             return
-        if time.ticks_ms() > self.time_since_last_fall + self.time_between_falls:
-            self.time_since_last_fall = time.ticks_ms() + self.time_between_falls
+        now = ticks_ms()
+        if now > self.time_since_last_fall + self.time_between_falls:
+            self.time_since_last_fall = now
             self.shape_y -= 1
-            print("tick")
         new_shape = False
         # in case block hit ground, create a new shape
         if self.shape_y < 0:
             self.shape_y = 0
             new_shape = True
-            print ("hit floor")
         # in case shape moved (x, y, frame) handle move
         if self.shape_x != self.shape_prev_x or self.shape_y != self.shape_prev_y or self.shape_frame != self.shape_prev_frame:
             # rotate frame as needed
@@ -225,7 +229,6 @@ class Logic:
                 self.shape_x = 0
             # don't allow move right beyond right wall (consider shape width)
             if self.shape_x + len(self.SHAPES[self.shape][self.shape_frame][0]) > self.BOARD_WIDTH:
-                print(len(self.SHAPES[self.shape][self.shape_frame][0]), self.SHAPES[self.shape][self.shape_frame][0])
                 self.shape_x = self.shape_prev_x
                 self.shape_frame = self.shape_prev_frame
             # remove previous shape from board 
@@ -242,13 +245,11 @@ class Logic:
                             # undo move
                             self.shape_x = self.shape_prev_x
                             self.shape_frame = self.shape_prev_frame
-                            print ("collission detected")
                             # if colission while going down, leave block in place
                             # and create a new one
                             if self.shape_y != self.shape_prev_y:
                                 self.shape_y = self.shape_prev_y
                                 new_shape = True
-                                print ("landed on blocks")
             
             # no restrictions found,
             
@@ -263,7 +264,6 @@ class Logic:
             self.shape_prev_frame = self.shape_frame
             
         if new_shape:
-            print ("new shape!")
             self.change_shape()
         
         return
